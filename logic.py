@@ -1,95 +1,98 @@
 import datetime
-import csv  # Модуль для работы с файлами
-import os   # Модуль для проверки существования файла
+import csv
+import os
 
 class Task:
-    """
-    Класс, описывающий отдельную задачу.
-    """
-    def __init__(self, title: str, time: str):
+    def __init__(self, title: str, time: str, is_completed: bool = False):
         self.title = title
         self.time = time
-        self.is_completed = False
+        self.is_completed = is_completed
 
     def __str__(self):
-        return f"[{self.time}]  {self.title}"
+        status = "[x]" if self.is_completed else "[ ]"
+        return f"{status} {self.time} - {self.title}"
 
 
 class TaskManager:
-    """
-    Класс для управления списком задач (Model).
-    """
+    # Отвечает за добавление, удаление, сортировку задач и работу с файловой системой.
     def __init__(self):
         self.tasks = []
-        self.file_name = "tasks_db.csv" # Имя файла для сохранения
+        self.file_name = "tasks_db.csv" 
 
     def _normalize_time_input(self, time_str: str) -> str:
-        """Приведение времени к формату ЧЧ:ММ."""
+        # Превращает '1020', '10-20' в '10:20', '10:20'
         for sep in ['-', '.', ' ', ',', ';']:
             time_str = time_str.replace(sep, ':')
         
+        # Если разделителей нет, пытаемся понять логику по длине строки
         if ':' not in time_str and time_str.isdigit():
-            if len(time_str) == 4:
+            if len(time_str) == 4:    # "1020" -> "10:20"
                 time_str = f"{time_str[:2]}:{time_str[2:]}"
-            elif len(time_str) == 3:
+            elif len(time_str) == 3:  # "930" -> "09:30"
                 time_str = f"0{time_str[0]}:{time_str[1:]}"
-            elif len(time_str) in (1, 2):
+            elif len(time_str) in (1, 2): # "9" -> "09:00"
                 time_str = f"{time_str.zfill(2)}:00"
         return time_str
 
+
+
     def add_task(self, title: str, time: str) -> None:
-        """Добавляет задачу с валидацией."""
+        # Создает новую задачу и добавляет её в список.
+        # Выбрасывает ValueError, если время указано некорректно.
         normalized_input = self._normalize_time_input(time)
+        
         try:
+            # Парсим время для проверки валидности (часы 0-23, минуты 0-59)
             dt = datetime.datetime.strptime(normalized_input, "%H:%M")
             formatted_time = dt.strftime("%H:%M")
         except ValueError:
-            raise ValueError(f"Не удалось распознать время: '{time}'")
+            raise ValueError(f"Не удалось распознать время: '{time}'. Используйте формат ЧЧ:ММ.")
 
         new_task = Task(title, formatted_time)
         self.tasks.append(new_task)
+        
+        # Автоматическая сортировка списка по времени
         self.tasks.sort(key=lambda x: x.time)
 
-    def delete_task_by_index(self, index: int) -> None:
-        """Удаляет задачу по индексу."""
-        if 0 <= index < len(self.tasks):
-            self.tasks.pop(index)
+    def delete_task(self, task: Task) -> None:
+        if task in self.tasks:
+            self.tasks.remove(task)
+
+    def toggle_task_status(self, task: Task) -> None:
+        task.is_completed = not task.is_completed
 
     def get_all_tasks(self) -> list:
-        """Возвращает список задач."""
         return self.tasks
 
-    # --- НОВЫЕ МЕТОДЫ ДЛЯ СОХРАНЕНИЯ ---
-
     def save_to_file(self) -> None:
-        """Сохраняет все задачи в CSV файл."""
         try:
-            # encoding='utf-8' важен для поддержки русского языка
             with open(self.file_name, mode="w", newline="", encoding="utf-8") as file:
                 writer = csv.writer(file)
                 for task in self.tasks:
-                    # Записываем: Название, Время, Выполнено ли
-                    writer.writerow([task.title, task.time])
+                    # Сериализуем объект в строку CSV
+                    writer.writerow([task.title, task.time, str(task.is_completed)])
         except Exception as e:
-            print(f"Ошибка при сохранении: {e}")
+            print(f"Ошибка сохранения базы данных: {e}")
 
     def load_from_file(self) -> None:
-        """Загружает задачи из CSV файла при старте."""
         if not os.path.exists(self.file_name):
-            return  # Если файла нет (первый запуск), ничего не делаем
+            return  # Файла нет — начинаем с чистого листа
 
         try:
-            self.tasks = [] # Очищаем список перед загрузкой
+            self.tasks = []
             with open(self.file_name, mode="r", encoding="utf-8") as file:
                 reader = csv.reader(file)
                 for row in reader:
                     if len(row) >= 2:
-                        title, time = row[0], row[1]
-                        # Создаем задачу напрямую, минуя проверки (мы доверяем своему файлу)
-                        new_task = Task(title, time)
+                        title = row[0]
+                        time = row[1]
+                        # Восстанавливаем булево значение из строки
+                        is_completed = (row[2] == 'True') if len(row) > 2 else False
+                        
+                        new_task = Task(title, time, is_completed)
                         self.tasks.append(new_task)
             
-            # Сортируем после загрузки
+            # Сортируем после загрузки, на случай если файл редактировали вручную
             self.tasks.sort(key=lambda x: x.time)
         except Exception as e:
-            print(f"Ошибка при загрузке: {e}")
+            print(f"Ошибка загрузки базы данных: {e}")
