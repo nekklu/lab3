@@ -4,23 +4,14 @@ from tkinter import messagebox
 from logic import TaskManager
 
 class ScrollableFrame(ttk.Frame):
-    """
-    Кастомный компонент: Фрейм с вертикальной полосой прокрутки.
-    Решает проблему того, что стандартный Frame нельзя прокручивать.
-    """
     def __init__(self, container, *args, **kwargs):
         super().__init__(container, *args, **kwargs)
         
-        # Создаем Canvas (холст), так как только он поддерживает скроллинг
         self.canvas = tk.Canvas(self, highlightthickness=0)
-        self.canvas.configure(bg="white")  # Белый фон для области задач
+        self.canvas.configure(bg="white")
         
-        # Создаем скроллбар и привязываем его к холсту
         scrollbar = ttk.Scrollbar(self, orient="vertical", command=self.canvas.yview)
-        
-        # ВНИМАНИЕ: Используем tk.Frame (старый), а не ttk.Frame.
-        # Это нужно, чтобы гарантированно работал параметр bg="white".
-        # Виджеты ttk игнорируют bg и используют цвет темы.
+    
         self.scrollable_content = tk.Frame(self.canvas, bg="white")
         
         # Обновляем область прокрутки при добавлении виджетов
@@ -49,7 +40,6 @@ class ScrollableFrame(ttk.Frame):
         self.canvas.bind_all("<MouseWheel>", self._on_mousewheel)
 
     def _on_mousewheel(self, event):
-        """Обработчик прокрутки колесика мыши."""
         self.canvas.yview_scroll(int(-1*(event.delta/120)), "units")
 
 
@@ -176,33 +166,34 @@ class DailyPlannerGUI:
                            fg="gray", bg="white", font=("Segoe UI", 10))
             lbl.pack(pady=20)
             return
-
+        
         for task in tasks:
-            row_frame = tk.Frame(self.tasks_frame.scrollable_content, bg="white")
-            row_frame.pack(fill="x", pady=2, padx=5)
+            self._render_task_row(task)
 
-            # Переменная состояния чекбокса
-            var = tk.BooleanVar(value=task.is_completed)
-            style_name = "Done.Task.TCheckbutton" if task.is_completed else "Task.TCheckbutton"
+    def _render_task_row(self, task: object):
+        row_frame = tk.Frame(self.tasks_frame.scrollable_content, bg="white")
+        row_frame.pack(fill="x", pady=2, padx=5)
 
-            # Чекбокс с задачей
-            chk = ttk.Checkbutton(
-                row_frame, 
-                text=f"[{task.time}] {task.title}", 
-                variable=var,
-                style=style_name,
-                # lambda нужна для передачи конкретного объекта task
-                command=lambda t=task: self._toggle_task(t)
-            )
-            chk.pack(side="left", fill="x", expand=True)
+        var = tk.BooleanVar(value=task.is_completed)
+        style_name = "Done.Task.TCheckbutton" if task.is_completed else "Task.TCheckbutton"
 
-            del_btn = ttk.Button(
-                row_frame, 
-                text="✖", 
-                width=3,
-                command=lambda t=task: self._delete_task_handler(t)
-            )
-            del_btn.pack(side="right")
+        chk = ttk.Checkbutton(
+            row_frame, 
+            text=f"[{task.time}] {task.title}", 
+            variable=var,
+            style=style_name,
+            command=lambda t=task: self._toggle_task(t)
+        )
+        chk.pack(side="left", fill="x", expand=True)
+
+        del_btn = ttk.Button(
+            row_frame, 
+            text="✖", 
+            width=3,
+            command=lambda t=task: self._delete_task_handler(t)
+        )
+        del_btn.pack(side="right")
+
 
     def _toggle_task(self, task):
         self.manager.toggle_task_status(task)
